@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="generator" content="Docusaurus v3.10.2">
 <title data-rh="true">PBS Account | Local Public Docs</title><meta data-rh="true" name="viewport" content="width=device-width,initial-scale=1"><meta data-rh="true" name="robots" content="noindex, nofollow"><meta data-rh="true" name="twitter:card" content="summary_large_image"><meta data-rh="true" property="og:url" content="https://docs.api.localstreaming.org/http-api/pbs-account"><meta data-rh="true" property="og:locale" content="en"><meta data-rh="true" name="docusaurus_locale" content="en"><meta data-rh="true" name="docsearch:language" content="en"><meta data-rh="true" name="docusaurus_version" content="current"><meta data-rh="true" name="docusaurus_tag" content="docs-default-current"><meta data-rh="true" name="docsearch:version" content="current"><meta data-rh="true" name="docsearch:docusaurus_tag" content="docs-default-current"><meta data-rh="true" property="og:title" content="PBS Account | Local Public Docs"><meta data-rh="true" name="description" content="PBS Account endpoints implement the new Public Media SSO)"><meta data-rh="true" property="og:description" content="PBS Account endpoints implement the new Public Media SSO)"><link data-rh="true" rel="canonical" href="https://docs.api.localstreaming.org/http-api/pbs-account"><link data-rh="true" rel="alternate" href="https://docs.api.localstreaming.org/http-api/pbs-account" hreflang="en"><link data-rh="true" rel="alternate" href="https://docs.api.localstreaming.org/http-api/pbs-account" hreflang="x-default"><script data-rh="true" type="application/ld+json">{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"HTTP API","item":"https://docs.api.localstreaming.org/http-api/"},{"@type":"ListItem","position":2,"name":"PBS Account","item":"https://docs.api.localstreaming.org/http-api/pbs-account"}]}</script><link rel="stylesheet" href="/assets/css/styles.090f2b2d.css">
-<script src="/assets/js/runtime~main.924ff7a3.js" defer="defer"></script>
+<script src="/assets/js/runtime~main.a9d835e1.js" defer="defer"></script>
 <script src="/assets/js/main.0c28660f.js" defer="defer"></script>
 </head>
 <body>
@@ -121,6 +121,44 @@ for details about the upstream API, but note that not all features are supported
 <li class=""><code>validationErrors</code>: Array of validation error strings for the viewer (when <code>reason</code> == <code>VALIDATION_ERRORS</code>).</li>
 </ul></div><div role="tabpanel" class="tabItem_wHwb" hidden=""><p>Indicates an error from the upstream API that could not be handled.</p></div></div></div>
 <h2 class="anchor anchorTargetStickyNavbar_tleR" id="public-media-sso-authorization">Public Media SSO authorization<a href="#public-media-sso-authorization" class="hash-link" aria-label="Direct link to Public Media SSO authorization" title="Direct link to Public Media SSO authorization" translate="no">​</a></h2>
+<h3 class="anchor anchorTargetStickyNavbar_tleR" id="web-based-authorization-flow">Web-based authorization flow<a href="#web-based-authorization-flow" class="hash-link" aria-label="Direct link to Web-based authorization flow" title="Direct link to Web-based authorization flow" translate="no">​</a></h3>
+<p>Perform web-based SSO authorization with the following flow:</p>
+<ol>
+<li class=""><a class="" href="/http-api/device-init#post-deviceinit"><code>POST /deviceInit</code></a></li>
+<li class="">Capture <code>deviceId</code></li>
+<li class=""><a href="#post-pbsaccountssoinit" class=""><code>POST /pbsAccount/sso/init</code></a> (using <code>deviceId</code> from Step 2)</li>
+<li class="">Use the returned OAuth2 client configuration values to run the SSO authorization flow in a web browser</li>
+</ol>
+<p>This flow is intended for frontends that can run a custom OAuth2 PKCE flow in a web browser. VPPA agreement is handled by the upstream SSO flow
+and does not require any additional steps.</p>
+<h4 class="anchor anchorTargetStickyNavbar_tleR" id="failure-handling">Failure handling<a href="#failure-handling" class="hash-link" aria-label="Direct link to Failure handling" title="Direct link to Failure handling" translate="no">​</a></h4>
+<p>If the authorization flow fails, the error behavior differs based on whether the OAuth <code>state</code> has been matched. If it has, the viewer will be
+redirected to the <code>returnUri</code> provided in Step 3 when possible with an <code>oauth_error</code> query parameter indicating the error.</p>
+<p>Possible values for the <code>oauth_error</code> query parameter are:</p>
+<ul>
+<li class=""><code>ACCESS_TOKEN_MISSING</code>: Unable to retrieve access token from PBS Account OAuth API.</li>
+<li class=""><code>DEVICE_UPDATE_FAILURE</code>: Unable to update device (invalid device ID or query error).</li>
+<li class=""><code>PBS_ACCOUNT_NOT_FOUND</code>: PBS Account ID not found.</li>
+<li class=""><code>VIEWER_UPDATE_FAILURE</code>: Unable to update viewer.</li>
+</ul>
+<p>If the <code>state</code> has not been matched, the viewer will receive a <code>400 Bad Request</code> response with a JSON body indicating the error. This behavior
+ensures that the viewer is not redirected to an untrusted <code>returnUri</code> when the OAuth2 state is invalid.</p>
+<p>Possible values for <code>oauth_error</code> JSON response are:</p>
+<ul>
+<li class=""><code>DEVICE_NOT_FOUND</code>: Device not found with provided state.</li>
+<li class=""><code>OAUTH2_STATE_FAILED</code>: Invalid OAuth2 state value.</li>
+<li class=""><code>STATION_NOT_FOUND</code>: Station not found for provided <code>stationId</code>.</li>
+<li class=""><code>VPPA_CALLBACK_COOKIE_FAILED</code>: Invalid VPPA callback cookie value.</li>
+</ul>
+<h4 class="anchor anchorTargetStickyNavbar_tleR" id="success-handling">Success handling<a href="#success-handling" class="hash-link" aria-label="Direct link to Success handling" title="Direct link to Success handling" translate="no">​</a></h4>
+<p>After authorization, the viewer will be redirected to the <code>returnUri</code> provided in Step 3. The following query parameters will be appended to the <code>returnUri</code>:</p>
+<ol>
+<li class=""><code>device_id</code>: The original device ID provided in Step 3 of the flow.</li>
+<li class=""><code>pbs_account_id</code>: The PBS Account ID of the logged in viewer.</li>
+<li class=""><code>membership_id</code>: The PBS Passport membership ID of the logged in viewer (if available).</li>
+<li class=""><code>success</code>: Always set to <code>1</code> to indicate the authorization flow completed successfully.</li>
+</ol>
+<p>After success, implementors should re-run <a class="" href="/http-api/device-init#post-deviceinit"><code>POST /deviceInit</code></a> to refresh the device state and retrieve the logged in viewer information.</p>
 <h3 class="anchor anchorTargetStickyNavbar_tleR" id="post-pbsaccountssoinit"><code>POST /pbsAccount/sso/init</code><a href="#post-pbsaccountssoinit" class="hash-link" aria-label="Direct link to post-pbsaccountssoinit" title="Direct link to post-pbsaccountssoinit" translate="no">​</a></h3>
 <h4 class="anchor anchorTargetStickyNavbar_tleR" id="purpose-4">Purpose<a href="#purpose-4" class="hash-link" aria-label="Direct link to Purpose" title="Direct link to Purpose" translate="no">​</a></h4>
 <p>Starts the OAuth2 authorization flow for a PBS Account for frontends using a custom OAuth2 PKCE flow.</p>
@@ -165,6 +203,6 @@ for details about the upstream login finalization for Public Media SSO.</p>
 <li class=""><code>STATION_NOT_FOUND</code>: Unknown station call sign.</li>
 </ul>
 </li>
-</ul></div></div></div></div></article><nav class="docusaurus-mt-lg pagination-nav" aria-label="Docs pages"><a class="pagination-nav__link pagination-nav__link--prev" href="/http-api/device-init"><div class="pagination-nav__sublabel">Previous</div><div class="pagination-nav__label">Device Init</div></a><a class="pagination-nav__link pagination-nav__link--next" href="/http-api/roku-search-feed"><div class="pagination-nav__sublabel">Next</div><div class="pagination-nav__label">Roku Search Feed</div></a></nav></div></div><div class="col col--3"><div class="tableOfContents_XG6w thin-scrollbar theme-doc-toc-desktop"><ul class="table-of-contents table-of-contents__left-border"><li><a href="#on-device-authentication" class="table-of-contents__link toc-highlight">On-device authentication</a><ul><li><a href="#post-pbsaccountregister" class="table-of-contents__link toc-highlight"><code>POST /pbsAccount/register</code></a></li><li><a href="#post-pbsaccountlogin" class="table-of-contents__link toc-highlight"><code>POST /pbsAccount/login</code></a></li><li><a href="#patch-pbsaccountprofile" class="table-of-contents__link toc-highlight"><code>PATCH /pbsAccount/profile</code></a></li><li><a href="#post-pbsaccountforgotpassword" class="table-of-contents__link toc-highlight"><code>POST /pbsAccount/forgotPassword</code></a></li></ul></li><li><a href="#public-media-sso-authorization" class="table-of-contents__link toc-highlight">Public Media SSO authorization</a><ul><li><a href="#post-pbsaccountssoinit" class="table-of-contents__link toc-highlight"><code>POST /pbsAccount/sso/init</code></a></li><li><a href="#get-pbsaccountssologin" class="table-of-contents__link toc-highlight"><code>GET /pbsAccount/sso/login</code></a></li></ul></li></ul></div></div></div></div></main></div></div></div><footer class="theme-layout-footer footer footer--dark"><div class="container container-fluid"><div class="footer__bottom text--center"><div class="footer__copyright">Copyright © 2026 Local Public, A Public Benefit Corporation.</div></div></div></footer></div>
+</ul></div></div></div></div></article><nav class="docusaurus-mt-lg pagination-nav" aria-label="Docs pages"><a class="pagination-nav__link pagination-nav__link--prev" href="/http-api/device-init"><div class="pagination-nav__sublabel">Previous</div><div class="pagination-nav__label">Device Init</div></a><a class="pagination-nav__link pagination-nav__link--next" href="/http-api/roku-search-feed"><div class="pagination-nav__sublabel">Next</div><div class="pagination-nav__label">Roku Search Feed</div></a></nav></div></div><div class="col col--3"><div class="tableOfContents_XG6w thin-scrollbar theme-doc-toc-desktop"><ul class="table-of-contents table-of-contents__left-border"><li><a href="#on-device-authentication" class="table-of-contents__link toc-highlight">On-device authentication</a><ul><li><a href="#post-pbsaccountregister" class="table-of-contents__link toc-highlight"><code>POST /pbsAccount/register</code></a></li><li><a href="#post-pbsaccountlogin" class="table-of-contents__link toc-highlight"><code>POST /pbsAccount/login</code></a></li><li><a href="#patch-pbsaccountprofile" class="table-of-contents__link toc-highlight"><code>PATCH /pbsAccount/profile</code></a></li><li><a href="#post-pbsaccountforgotpassword" class="table-of-contents__link toc-highlight"><code>POST /pbsAccount/forgotPassword</code></a></li></ul></li><li><a href="#public-media-sso-authorization" class="table-of-contents__link toc-highlight">Public Media SSO authorization</a><ul><li><a href="#web-based-authorization-flow" class="table-of-contents__link toc-highlight">Web-based authorization flow</a></li><li><a href="#post-pbsaccountssoinit" class="table-of-contents__link toc-highlight"><code>POST /pbsAccount/sso/init</code></a></li><li><a href="#get-pbsaccountssologin" class="table-of-contents__link toc-highlight"><code>GET /pbsAccount/sso/login</code></a></li></ul></li></ul></div></div></div></div></main></div></div></div><footer class="theme-layout-footer footer footer--dark"><div class="container container-fluid"><div class="footer__bottom text--center"><div class="footer__copyright">Copyright © 2026 Local Public, A Public Benefit Corporation.</div></div></div></footer></div>
 </body>
 </html>
